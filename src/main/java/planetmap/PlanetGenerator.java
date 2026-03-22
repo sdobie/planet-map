@@ -403,10 +403,14 @@ public class PlanetGenerator {
     private static final double SEA_LEVEL = 0.50;
 
     private Color getBiomeColor(double elevation, double moisture, double temperature, double absLat, double rough) {
-        // Water
-        if (elevation < SEA_LEVEL) {
+        // Coastal transition zone: use roughness to create a textured shoreline
+        // Within a narrow band around SEA_LEVEL, mix water and land based on roughness
+        double coastBand = 0.012; // width of the transition zone
+        double distFromSea = elevation - SEA_LEVEL;
+
+        if (distFromSea < -coastBand) {
+            // Fully water
             double depth = (SEA_LEVEL - elevation) / SEA_LEVEL;
-            // Polar ice — use temperature instead of hard latitude
             if (temperature < 0.05) {
                 return lerpColor(getWaterColor(depth), ICE, smoothstep((0.05 - temperature) / 0.05));
             }
@@ -415,6 +419,21 @@ public class PlanetGenerator {
                 return lerpColor(getWaterColor(depth), ICE, iceAmount * 0.7);
             }
             return getWaterColor(depth);
+        }
+
+        if (distFromSea < coastBand) {
+            // Transition zone: use rough noise to decide water vs land at each pixel
+            double t = (distFromSea + coastBand) / (2.0 * coastBand); // 0 to 1
+            // Roughness creates irregular threshold — some pixels are water, some land
+            double threshold = 0.3 + rough * 0.5; // rough varies ~0-1
+            if (t < threshold) {
+                // Show as water (shore water)
+                return SHORE_WATER;
+            }
+            // Show as beach/land with partial blend
+            double landBlend = smoothstep((t - threshold) / (1.0 - threshold));
+            Color biome = getLandBiome(moisture, temperature);
+            return lerpColor(SHORE_WATER, lerpColor(BEACH, biome, landBlend * 0.5), landBlend);
         }
 
         double landHeight = (elevation - SEA_LEVEL) / (1.0 - SEA_LEVEL);
