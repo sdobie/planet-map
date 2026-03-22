@@ -60,6 +60,7 @@ public class PlanetGenerator {
         SimplexNoise tempNoise      = new SimplexNoise(seed + 7000);
 
         double[][] elevation = new double[width][height];
+        double[][] continentalness = new double[width][height]; // smooth, for coloring
         double[][] moisture = new double[width][height];
         double[][] temperature = new double[width][height];
 
@@ -139,6 +140,7 @@ public class PlanetGenerator {
                 double e = cont * 0.70 + terrain * 0.15 + ridge * 0.15;
 
                 elevation[px][py] = e;
+                continentalness[px][py] = cont; // store smooth value for rendering
 
                 // === MOISTURE ===
                 double moistFreq = 2.5;
@@ -158,6 +160,7 @@ public class PlanetGenerator {
 
         // Normalize all to [0, 1]
         normalize(elevation);
+        normalize(continentalness);
         normalize(moisture);
 
         // === ELEVATION REDISTRIBUTION: create bimodal hypsometric curve ===
@@ -202,10 +205,11 @@ public class PlanetGenerator {
 
             for (int px = 0; px < width; px++) {
                 double e = elevation[px][py];
+                double c = continentalness[px][py];
                 double m = moisture[px][py];
                 double t = temperature[px][py];
 
-                Color color = getBiomeColor(e, m, t, absLat);
+                Color color = getBiomeColor(e, c, m, t, absLat);
                 image.setRGB(px, py, color.getRGB());
             }
         }
@@ -252,7 +256,7 @@ public class PlanetGenerator {
 
     private static final double SEA_LEVEL = 0.50;
 
-    private Color getBiomeColor(double elevation, double moisture, double temperature, double absLat) {
+    private Color getBiomeColor(double elevation, double continentalness, double moisture, double temperature, double absLat) {
         // Water
         if (elevation < SEA_LEVEL) {
             double depth = (SEA_LEVEL - elevation) / SEA_LEVEL;
@@ -277,21 +281,22 @@ public class PlanetGenerator {
             return lerpColor(TUNDRA, SNOW, smoothstep((absLat - 0.90) / 0.10));
         }
 
-        // Snow line depends on latitude
-        double snowLine = 0.80 - absLat * 0.25;
+        // Use smooth continentalness for mountain coloring (not noisy elevation)
+        // This gives broad, solid mountain regions instead of speckled/cloudy ones
+        double mountainness = smoothstep(Math.max(0, (continentalness - 0.65) / 0.35));
 
-        // Snow-capped peaks (wide blend)
-        if (landHeight > snowLine) {
+        // Snow line depends on latitude and mountainness
+        double snowLine = 0.80 - absLat * 0.25;
+        if (landHeight > snowLine && mountainness > 0.3) {
             double t = smoothstep((landHeight - snowLine) / (1.0 - snowLine));
-            Color base = lerpColor(biome, MOUNTAIN_HIGH, smoothstep((snowLine - 0.25) / 0.40));
+            Color base = lerpColor(biome, MOUNTAIN_ROCK, mountainness);
             return lerpColor(base, SNOW, t);
         }
 
-        // Mountain/highland zone: solid rock appearance
-        if (landHeight > 0.45) {
-            double t = smoothstep((landHeight - 0.45) / 0.30);
-            Color rock = lerpColor(MOUNTAIN_ROCK, MOUNTAIN_HIGH, landHeight);
-            return lerpColor(biome, rock, t);
+        // Mountain/highland zone: based on smooth continental value
+        if (mountainness > 0.05) {
+            Color rock = lerpColor(MOUNTAIN_ROCK, MOUNTAIN_HIGH, mountainness);
+            return lerpColor(biome, rock, mountainness);
         }
 
         return biome;
