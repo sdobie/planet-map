@@ -322,27 +322,76 @@ public class PlanetGenerator {
     }
 
     private Color getLandBiome(double moisture, double temperature) {
-        // All biome selection purely temperature + moisture based (no latitude thresholds)
-        if (temperature < 0.15) {
-            return moisture > 0.45 ? BOREAL_FOREST : TUNDRA;
-        }
-        if (temperature < 0.35) {
-            if (moisture > 0.55) return BOREAL_FOREST;
-            if (moisture > 0.35) return GRASSLAND;
-            return DRY_GRASSLAND;
-        }
-        if (temperature < 0.55) {
-            if (moisture > 0.6) return TEMPERATE_FOREST;
-            if (moisture > 0.35) return GRASSLAND;
-            return DRY_GRASSLAND;
+        // Smooth blending between biomes using interpolation
+        // Temperature zones blend over a range instead of hard cutoffs
+        double coldWeight    = 1.0 - smoothstep((temperature - 0.10) / 0.15);  // peaks below 0.10
+        double coolWeight    = bellCurve(temperature, 0.25, 0.15);              // peaks at 0.25
+        double warmWeight    = bellCurve(temperature, 0.45, 0.15);              // peaks at 0.45
+        double hotWeight     = smoothstep((temperature - 0.45) / 0.15);         // peaks above 0.60
+
+        // Normalize weights
+        double totalW = coldWeight + coolWeight + warmWeight + hotWeight;
+        if (totalW > 0) {
+            coldWeight /= totalW; coolWeight /= totalW;
+            warmWeight /= totalW; hotWeight /= totalW;
         }
 
-        // Hot / tropical
-        if (moisture > 0.60) return TROPICAL_FOREST;
-        if (moisture > 0.40) return GRASSLAND;
-        if (moisture > 0.25) return DRY_GRASSLAND;
-        return SUBTROPICAL_DESERT;
+        // Get biome color for each temperature zone with smooth moisture blending
+        Color coldBiome = blendMoisture(moisture, TUNDRA, 0.30, BOREAL_FOREST, 0.55);
+        Color coolBiome = blendMoisture3(moisture, DRY_GRASSLAND, 0.25, GRASSLAND, 0.45, BOREAL_FOREST, 0.65);
+        Color warmBiome = blendMoisture3(moisture, DRY_GRASSLAND, 0.25, GRASSLAND, 0.45, TEMPERATE_FOREST, 0.65);
+        Color hotBiome  = blendMoisture4(moisture, SUBTROPICAL_DESERT, 0.20, DRY_GRASSLAND, 0.35,
+                                          GRASSLAND, 0.50, TROPICAL_FOREST, 0.65);
+
+        // Blend temperature zones together
+        int r = (int)(coldBiome.getRed() * coldWeight + coolBiome.getRed() * coolWeight +
+                      warmBiome.getRed() * warmWeight + hotBiome.getRed() * hotWeight);
+        int g = (int)(coldBiome.getGreen() * coldWeight + coolBiome.getGreen() * coolWeight +
+                      warmBiome.getGreen() * warmWeight + hotBiome.getGreen() * hotWeight);
+        int b = (int)(coldBiome.getBlue() * coldWeight + coolBiome.getBlue() * coolWeight +
+                      warmBiome.getBlue() * warmWeight + hotBiome.getBlue() * hotWeight);
+        return new Color(clamp255(r), clamp255(g), clamp255(b));
     }
+
+    /** Bell curve weight centered at 'center' with half-width 'width'. */
+    private static double bellCurve(double x, double center, double width) {
+        double d = (x - center) / width;
+        return Math.max(0, 1.0 - d * d);
+    }
+
+    /** Blend between two biomes along a moisture gradient. */
+    private static Color blendMoisture(double m, Color dry, double threshold, Color wet, double wetThreshold) {
+        double t = smoothstep((m - threshold) / (wetThreshold - threshold));
+        return lerpColor(dry, wet, t);
+    }
+
+    /** Blend between three biomes along a moisture gradient. */
+    private static Color blendMoisture3(double m, Color c1, double t1, Color c2, double t2, Color c3, double t3) {
+        if (m < t2) {
+            double t = smoothstep((m - t1) / (t2 - t1));
+            return lerpColor(c1, c2, t);
+        } else {
+            double t = smoothstep((m - t2) / (t3 - t2));
+            return lerpColor(c2, c3, t);
+        }
+    }
+
+    /** Blend between four biomes along a moisture gradient. */
+    private static Color blendMoisture4(double m, Color c1, double t1, Color c2, double t2,
+                                         Color c3, double t3, Color c4, double t4) {
+        if (m < t2) {
+            double t = smoothstep((m - t1) / (t2 - t1));
+            return lerpColor(c1, c2, t);
+        } else if (m < t3) {
+            double t = smoothstep((m - t2) / (t3 - t2));
+            return lerpColor(c2, c3, t);
+        } else {
+            double t = smoothstep((m - t3) / (t4 - t3));
+            return lerpColor(c3, c4, t);
+        }
+    }
+
+    private static int clamp255(int v) { return Math.max(0, Math.min(255, v)); }
 
     private void normalize(double[][] data) {
         double min = Double.MAX_VALUE;
