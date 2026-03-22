@@ -56,11 +56,12 @@ public class PlanetGenerator {
         SimplexNoise warpNoise3     = new SimplexNoise(seed + 3000);
         SimplexNoise detailNoise    = new SimplexNoise(seed + 4000);
         SimplexNoise ridgeNoise     = new SimplexNoise(seed + 5000);
+        SimplexNoise mountainNoise  = new SimplexNoise(seed + 8000); // broad mountain regions
         SimplexNoise moistNoise     = new SimplexNoise(seed + 6000);
         SimplexNoise tempNoise      = new SimplexNoise(seed + 7000);
 
         double[][] elevation = new double[width][height];
-        double[][] ridgeMap = new double[width][height]; // smooth mountain indicator for coloring
+        double[][] mountainMap = new double[width][height]; // broad mountain regions for coloring
         double[][] moisture = new double[width][height];
         double[][] temperature = new double[width][height];
 
@@ -127,20 +128,30 @@ public class PlanetGenerator {
                         wwsx * terrainFreq, wwsy * terrainFreq, wwsz * terrainFreq,
                         4, 0.4, 2.0);
 
-                // === RIDGE NOISE: for mountain chains, broader and more natural ===
-                double ridgeFreq = 2.5;
+                // === MOUNTAIN REGIONS: low-frequency blobs marking where mountains are ===
+                double mtFreq = 1.8;
+                double mt = mountainNoise.fractal(
+                        wsx * mtFreq + 50, wsy * mtFreq + 50, wsz * mtFreq + 50,
+                        2, 0.4, 2.0);
+                // Only positive values become mountains, threshold to top ~30% of land
+                mt = Math.max(0, mt);
+                mt = mt * mt; // sharpen: only strong values matter
+
+                // === RIDGE NOISE: subtle elevation variation within mountain regions ===
+                double ridgeFreq = 3.0;
                 double ridge = ridgeNoise.fractal(
                         wsx * ridgeFreq, wsy * ridgeFreq, wsz * ridgeFreq,
                         3, 0.4, 2.0);
-                ridge = 1.0 - 2.0 * Math.abs(ridge);
                 ridge = Math.max(0, ridge);
-                ridge = ridge * ridge; // squared, not cubed — broader peaks
 
-                // === COMBINE: continent dominates shape, detail/ridges only add texture ===
-                double e = cont * 0.70 + terrain * 0.15 + ridge * 0.15;
+                // Mountains only contribute elevation where mountain regions exist
+                double mountainElev = mt * (0.8 + ridge * 0.2);
+
+                // === COMBINE: continent shape + terrain detail + mountain elevation ===
+                double e = cont * 0.65 + terrain * 0.15 + mountainElev * 0.20;
 
                 elevation[px][py] = e;
-                ridgeMap[px][py] = ridge; // store smooth ridge value for mountain coloring
+                mountainMap[px][py] = mt; // store broad mountain region for coloring
 
                 // === MOISTURE ===
                 double moistFreq = 2.5;
@@ -160,7 +171,7 @@ public class PlanetGenerator {
 
         // Normalize all to [0, 1]
         normalize(elevation);
-        normalize(ridgeMap);
+        normalize(mountainMap);
         normalize(moisture);
 
         // === ELEVATION REDISTRIBUTION: create bimodal hypsometric curve ===
@@ -205,7 +216,7 @@ public class PlanetGenerator {
 
             for (int px = 0; px < width; px++) {
                 double e = elevation[px][py];
-                double r = ridgeMap[px][py];
+                double r = mountainMap[px][py];
                 double m = moisture[px][py];
                 double t = temperature[px][py];
 
@@ -256,7 +267,7 @@ public class PlanetGenerator {
 
     private static final double SEA_LEVEL = 0.50;
 
-    private Color getBiomeColor(double elevation, double ridgeValue, double moisture, double temperature, double absLat) {
+    private Color getBiomeColor(double elevation, double mountainRegion, double moisture, double temperature, double absLat) {
         // Water
         if (elevation < SEA_LEVEL) {
             double depth = (SEA_LEVEL - elevation) / SEA_LEVEL;
@@ -281,22 +292,23 @@ public class PlanetGenerator {
             return lerpColor(TUNDRA, SNOW, smoothstep((absLat - 0.90) / 0.10));
         }
 
-        // Mountain coloring based on ridge value (only where ridges are strong)
-        // ridgeValue is already squared and clamped, so only peaks are high
-        double mountainness = smoothstep(Math.max(0, (ridgeValue - 0.3) / 0.7));
+        // Mountain coloring based on broad mountain regions
+        // mountainRegion is a smooth, low-frequency value — high in mountain areas
+        double mountainness = smoothstep(mountainRegion);
 
         // Snow line depends on latitude
         double snowLine = 0.75 - absLat * 0.25;
-        if (mountainness > 0.4 && landHeight > snowLine) {
+        if (mountainness > 0.5 && landHeight > snowLine) {
             double snowT = smoothstep((landHeight - snowLine) / (1.0 - snowLine));
             Color base = lerpColor(biome, MOUNTAIN_ROCK, mountainness);
-            return lerpColor(base, SNOW, snowT * mountainness);
+            return lerpColor(base, SNOW, snowT);
         }
 
-        // Rock coloring only where ridges are strong
-        if (mountainness > 0.1) {
-            Color rock = lerpColor(MOUNTAIN_ROCK, MOUNTAIN_HIGH, ridgeValue);
-            return lerpColor(biome, rock, mountainness);
+        // Broad mountain rock coloring
+        if (mountainness > 0.15) {
+            double rockT = smoothstep((mountainness - 0.15) / 0.85);
+            Color rock = lerpColor(MOUNTAIN_ROCK, MOUNTAIN_HIGH, mountainness);
+            return lerpColor(biome, rock, rockT);
         }
 
         return biome;
