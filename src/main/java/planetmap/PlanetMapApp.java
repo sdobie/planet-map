@@ -2,8 +2,6 @@ package planetmap;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
 import java.awt.image.BufferedImage;
 
 /**
@@ -15,13 +13,18 @@ public class PlanetMapApp extends JFrame {
     private final JLabel seedLabel;
     private final PlanetGenerator generator;
     private long currentSeed;
-    private BufferedImage currentMap;
+    private BufferedImage currentFlatMap;
+    private BufferedImage currentDisplay;
+    private boolean sphereView = true;
+    private double rotationDeg = 0;
+    private long starSeed;
 
     public PlanetMapApp() {
         super("Planet Map Generator");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         generator = new PlanetGenerator(2048, 1024);
+        starSeed = System.nanoTime();
 
         // Map display
         mapLabel = new JLabel();
@@ -34,14 +37,33 @@ public class PlanetMapApp extends JFrame {
         scrollPane.setBorder(null);
 
         // Controls panel
-        JPanel controls = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 8));
+        JPanel controls = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 6));
 
         JButton generateButton = new JButton("Generate New Planet");
         generateButton.setFont(new Font("SansSerif", Font.BOLD, 14));
         generateButton.addActionListener(e -> generateNewMap());
 
+        JToggleButton viewToggle = new JToggleButton("Sphere View", true);
+        viewToggle.addActionListener(e -> {
+            sphereView = viewToggle.isSelected();
+            viewToggle.setText(sphereView ? "Sphere View" : "Flat View");
+            updateDisplay();
+        });
+
+        JButton rotLeftBtn = new JButton("\u25C0 Rotate");
+        rotLeftBtn.addActionListener(e -> {
+            rotationDeg = (rotationDeg - 30 + 360) % 360;
+            updateDisplay();
+        });
+
+        JButton rotRightBtn = new JButton("Rotate \u25B6");
+        rotRightBtn.addActionListener(e -> {
+            rotationDeg = (rotationDeg + 30) % 360;
+            updateDisplay();
+        });
+
         JLabel seedInputLabel = new JLabel("Seed:");
-        JTextField seedField = new JTextField(16);
+        JTextField seedField = new JTextField(14);
         seedField.setFont(new Font("Monospaced", Font.PLAIN, 13));
         JButton seedButton = new JButton("Use Seed");
         seedButton.addActionListener(e -> {
@@ -49,25 +71,25 @@ public class PlanetMapApp extends JFrame {
                 long seed = Long.parseLong(seedField.getText().trim());
                 generateMap(seed);
             } catch (NumberFormatException ex) {
-                // Try hashing the string as a seed
                 generateMap(seedField.getText().trim().hashCode());
             }
         });
 
-        seedLabel = new JLabel("Seed: —");
+        seedLabel = new JLabel("Seed: \u2014");
         seedLabel.setFont(new Font("Monospaced", Font.PLAIN, 12));
 
         JButton saveButton = new JButton("Save PNG");
         saveButton.addActionListener(e -> saveImage());
 
         controls.add(generateButton);
-        controls.add(Box.createHorizontalStrut(16));
+        controls.add(viewToggle);
+        controls.add(rotLeftBtn);
+        controls.add(rotRightBtn);
+        controls.add(Box.createHorizontalStrut(10));
         controls.add(seedInputLabel);
         controls.add(seedField);
         controls.add(seedButton);
-        controls.add(Box.createHorizontalStrut(16));
         controls.add(saveButton);
-        controls.add(Box.createHorizontalStrut(16));
         controls.add(seedLabel);
 
         // Layout
@@ -75,15 +97,13 @@ public class PlanetMapApp extends JFrame {
         add(scrollPane, BorderLayout.CENTER);
         add(controls, BorderLayout.SOUTH);
 
-        // Size the window to fit the map with controls
+        // Size window for sphere view (square + controls)
         Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-        int winW = Math.min(generator.getWidth() + 20, screenSize.width - 40);
-        int winH = Math.min(generator.getHeight() + 80, screenSize.height - 40);
-        setPreferredSize(new Dimension(winW, winH));
+        int sphereSize = Math.min(1024, screenSize.height - 120);
+        setPreferredSize(new Dimension(sphereSize + 20, sphereSize + 70));
         pack();
         setLocationRelativeTo(null);
 
-        // Generate initial map
         generateNewMap();
     }
 
@@ -94,9 +114,9 @@ public class PlanetMapApp extends JFrame {
 
     private void generateMap(long seed) {
         currentSeed = seed;
+        starSeed = seed + 99999;
         seedLabel.setText("Seed: " + seed);
 
-        // Generate in background to keep UI responsive
         SwingWorker<BufferedImage, Void> worker = new SwingWorker<>() {
             @Override
             protected BufferedImage doInBackground() {
@@ -106,9 +126,8 @@ public class PlanetMapApp extends JFrame {
             @Override
             protected void done() {
                 try {
-                    currentMap = get();
-                    mapLabel.setIcon(new ImageIcon(currentMap));
-                    mapLabel.revalidate();
+                    currentFlatMap = get();
+                    updateDisplay();
                 } catch (Exception ex) {
                     JOptionPane.showMessageDialog(PlanetMapApp.this,
                             "Error generating map: " + ex.getMessage(),
@@ -119,14 +138,44 @@ public class PlanetMapApp extends JFrame {
         worker.execute();
     }
 
+    private void updateDisplay() {
+        if (currentFlatMap == null) return;
+
+        SwingWorker<BufferedImage, Void> worker = new SwingWorker<>() {
+            @Override
+            protected BufferedImage doInBackground() {
+                if (sphereView) {
+                    int sphereSize = Math.min(1024, Math.min(getWidth() - 20, getHeight() - 70));
+                    sphereSize = Math.max(256, sphereSize);
+                    return SphereRenderer.render(currentFlatMap, sphereSize, rotationDeg, starSeed);
+                } else {
+                    return currentFlatMap;
+                }
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    currentDisplay = get();
+                    mapLabel.setIcon(new ImageIcon(currentDisplay));
+                    mapLabel.revalidate();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        };
+        worker.execute();
+    }
+
     private void saveImage() {
-        if (currentMap == null) return;
+        if (currentDisplay == null) return;
 
         JFileChooser chooser = new JFileChooser();
-        chooser.setSelectedFile(new java.io.File("planet_" + currentSeed + ".png"));
+        String suffix = sphereView ? "_sphere" : "_flat";
+        chooser.setSelectedFile(new java.io.File("planet_" + currentSeed + suffix + ".png"));
         if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
             try {
-                javax.imageio.ImageIO.write(currentMap, "PNG", chooser.getSelectedFile());
+                javax.imageio.ImageIO.write(currentDisplay, "PNG", chooser.getSelectedFile());
                 JOptionPane.showMessageDialog(this, "Map saved successfully!");
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(this,
@@ -137,7 +186,6 @@ public class PlanetMapApp extends JFrame {
     }
 
     public static void main(String[] args) {
-        // macOS look and feel tweaks
         System.setProperty("apple.laf.useScreenMenuBar", "true");
         System.setProperty("apple.awt.application.name", "Planet Map Generator");
 

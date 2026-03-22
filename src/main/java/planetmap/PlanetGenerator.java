@@ -164,8 +164,9 @@ public class PlanetGenerator {
             double lat = Math.PI * (0.5 - (double) py / height);
             double cosLat = Math.cos(lat);
             // Scale to compensate for latitude compression in equirectangular
-            double latScale = (cosLat > 0.01) ? 1.0 / cosLat : 100.0;
-            latScale = Math.min(latScale, 10.0); // cap near poles
+            // Cap aggressively to avoid streaking near poles
+            double latScale = (cosLat > 0.1) ? 1.0 / cosLat : 1.0 / 0.1;
+            latScale = Math.min(latScale, 3.0);
 
             for (int px = 0; px < width; px++) {
                 // Compute gradient using central differences, wrapping horizontally
