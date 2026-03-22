@@ -133,9 +133,8 @@ public class PlanetGenerator {
                 double mt = mountainNoise.fractal(
                         wsx * mtFreq + 50, wsy * mtFreq + 50, wsz * mtFreq + 50,
                         2, 0.4, 2.0);
-                // Only positive values become mountains, threshold to top ~30% of land
-                mt = Math.max(0, mt);
-                mt = mt * mt; // sharpen: only strong values matter
+                // Shift up so ~40% of area can be mountainous, then smooth threshold
+                mt = smoothstep(Math.max(0, mt + 0.25));
 
                 // === RIDGE NOISE: subtle elevation variation within mountain regions ===
                 double ridgeFreq = 3.0;
@@ -148,7 +147,7 @@ public class PlanetGenerator {
                 double mountainElev = mt * (0.8 + ridge * 0.2);
 
                 // === COMBINE: continent shape + terrain detail + mountain elevation ===
-                double e = cont * 0.65 + terrain * 0.15 + mountainElev * 0.20;
+                double e = cont * 0.60 + terrain * 0.10 + mountainElev * 0.30;
 
                 elevation[px][py] = e;
                 mountainMap[px][py] = mt; // store broad mountain region for coloring
