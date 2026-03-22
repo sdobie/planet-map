@@ -149,10 +149,6 @@ public class PlanetGenerator {
                     if (landH > 0.3) {
                         moisture[px][py] -= (landH - 0.3) * 0.5;
                     }
-                    // Near coast is wetter
-                    if (landH < 0.08) {
-                        moisture[px][py] += 0.2;
-                    }
                 }
                 if (absLat > 0.75) {
                     double polar = (absLat - 0.75) / 0.25;
@@ -425,7 +421,7 @@ public class PlanetGenerator {
         Color biome = getLandBiome(moisture, temperature);
 
         // Beach — use roughness noise to make the border irregular
-        double beachWidth = 0.03 + rough * 0.06; // varies from 0.03 to 0.09
+        double beachWidth = 0.06 + rough * 0.10; // varies from 0.06 to 0.16
         if (landHeight < beachWidth) {
             return lerpColor(BEACH, biome, smoothstep(landHeight / beachWidth));
         }
