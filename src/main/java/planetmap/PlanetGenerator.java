@@ -28,8 +28,9 @@ public class PlanetGenerator {
     private static final Color BOREAL_FOREST     = new Color(35, 75, 45);
     private static final Color TUNDRA            = new Color(165, 185, 170);
     private static final Color SNOW              = new Color(235, 242, 248);
-    private static final Color MOUNTAIN_ROCK     = new Color(95, 85, 75);
-    private static final Color MOUNTAIN_HIGH     = new Color(140, 130, 120);
+    private static final Color MOUNTAIN_DARK     = new Color(70, 60, 55);
+    private static final Color MOUNTAIN_MID      = new Color(120, 110, 95);
+    private static final Color MOUNTAIN_LIGHT    = new Color(175, 165, 150);
     private static final Color ICE               = new Color(210, 225, 240);
 
     public PlanetGenerator() {
@@ -304,17 +305,22 @@ public class PlanetGenerator {
         if (mountainness > 0.5 && landHeight > snowLine) {
             double snowT = smoothstep((landHeight - snowLine) / (1.0 - snowLine));
             // Textured rock under snow
-            Color rock = lerpColor(MOUNTAIN_ROCK, MOUNTAIN_HIGH, mountainDetail);
+            Color rock = lerpColor(MOUNTAIN_DARK, MOUNTAIN_LIGHT, mountainDetail);
             Color base = lerpColor(biome, rock, mountainness);
             return lerpColor(base, SNOW, snowT);
         }
 
-        // Textured mountain rock: fully opaque, detail only varies rock color
+        // Textured mountain rock: fully opaque, detail varies rock color across wide range
         if (mountainness > 0.2) {
             // Sharp transition: 0.2 -> 0.5 mountainness = 0% -> 100% rock
             double rockT = Math.min(1.0, (mountainness - 0.2) / 0.3);
-            // Detail varies between dark rock and light rock
-            Color rock = lerpColor(MOUNTAIN_ROCK, MOUNTAIN_HIGH, mountainDetail);
+            // Three-color gradient: dark valleys -> mid slopes -> light peaks
+            Color rock;
+            if (mountainDetail < 0.5) {
+                rock = lerpColor(MOUNTAIN_DARK, MOUNTAIN_MID, mountainDetail * 2.0);
+            } else {
+                rock = lerpColor(MOUNTAIN_MID, MOUNTAIN_LIGHT, (mountainDetail - 0.5) * 2.0);
+            }
             return lerpColor(biome, rock, rockT);
         }
 
