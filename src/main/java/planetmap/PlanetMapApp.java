@@ -61,7 +61,7 @@ public class PlanetMapApp extends JFrame {
                 if (isDragging) {
                     isDragging = false;
                     mapLabel.setCursor(Cursor.getDefaultCursor());
-                    // Do a final render at release to ensure we have the exact position
+                    // Full-res render on release
                     updateDisplay();
                 }
             }
@@ -123,8 +123,16 @@ public class PlanetMapApp extends JFrame {
         JButton saveButton = new JButton("Save PNG");
         saveButton.addActionListener(e -> saveImage());
 
+        JButton resetViewBtn = new JButton("Reset View");
+        resetViewBtn.addActionListener(e -> {
+            rotationDeg = 0;
+            tiltDeg = 0;
+            updateDisplay();
+        });
+
         controls.add(generateButton);
         controls.add(viewToggle);
+        controls.add(resetViewBtn);
         controls.add(Box.createHorizontalStrut(10));
         controls.add(seedInputLabel);
         controls.add(seedField);
@@ -198,14 +206,27 @@ public class PlanetMapApp extends JFrame {
         final double rot = rotationDeg;
         final double tilt = tiltDeg;
         final boolean sphere = sphereView;
+        final boolean dragging = isDragging;
 
         SwingWorker<BufferedImage, Void> worker = new SwingWorker<>() {
             @Override
             protected BufferedImage doInBackground() {
                 if (sphere) {
-                    int sphereSize = Math.min(1024, Math.min(getWidth() - 20, getHeight() - 70));
-                    sphereSize = Math.max(256, sphereSize);
-                    return SphereRenderer.render(currentFlatMap, sphereSize, rot, tilt, starSeed);
+                    int fullSize = Math.min(1024, Math.min(getWidth() - 20, getHeight() - 70));
+                    fullSize = Math.max(256, fullSize);
+                    // Render at half resolution while dragging for smoother interaction
+                    if (dragging) {
+                        int halfSize = fullSize / 2;
+                        BufferedImage small = SphereRenderer.render(currentFlatMap, halfSize, rot, tilt, starSeed);
+                        // Scale up to full size
+                        BufferedImage scaled = new BufferedImage(fullSize, fullSize, BufferedImage.TYPE_INT_RGB);
+                        Graphics2D g2 = scaled.createGraphics();
+                        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                        g2.drawImage(small, 0, 0, fullSize, fullSize, null);
+                        g2.dispose();
+                        return scaled;
+                    }
+                    return SphereRenderer.render(currentFlatMap, fullSize, rot, tilt, starSeed);
                 } else {
                     return currentFlatMap;
                 }
