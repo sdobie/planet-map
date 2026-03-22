@@ -24,6 +24,11 @@ public class PlanetMapApp extends JFrame {
     private double dragStartRot, dragStartTilt;
     private boolean isDragging = false;
 
+    // Render throttling
+    private volatile boolean isRendering = false;
+    private volatile boolean renderPending = false;
+    private volatile boolean isGenerating = false;
+
     public PlanetMapApp() {
         super("Planet Map Generator");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -41,7 +46,7 @@ public class PlanetMapApp extends JFrame {
         mapLabel.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
-                if (sphereView) {
+                if (sphereView && !isGenerating) {
                     isDragging = true;
                     dragStartX = e.getX();
                     dragStartY = e.getY();
@@ -53,8 +58,12 @@ public class PlanetMapApp extends JFrame {
 
             @Override
             public void mouseReleased(MouseEvent e) {
-                isDragging = false;
-                mapLabel.setCursor(Cursor.getDefaultCursor());
+                if (isDragging) {
+                    isDragging = false;
+                    mapLabel.setCursor(Cursor.getDefaultCursor());
+                    // Do a final render at release to ensure we have the exact position
+                    updateDisplay();
+                }
             }
         });
 
@@ -64,7 +73,6 @@ public class PlanetMapApp extends JFrame {
                 if (isDragging && sphereView) {
                     int dx = e.getX() - dragStartX;
                     int dy = e.getY() - dragStartY;
-                    // Convert pixel drag to degrees (scale by sphere size)
                     rotationDeg = (dragStartRot + dx * 0.4 + 360) % 360;
                     tiltDeg = Math.max(-80, Math.min(80, dragStartTilt + dy * 0.4));
                     updateDisplay();
@@ -81,7 +89,11 @@ public class PlanetMapApp extends JFrame {
 
         JButton generateButton = new JButton("Generate New Planet");
         generateButton.setFont(new Font("SansSerif", Font.BOLD, 14));
-        generateButton.addActionListener(e -> generateNewMap());
+        generateButton.addActionListener(e -> {
+            if (!isGenerating) {
+                generateNewMap();
+            }
+        });
 
         JToggleButton viewToggle = new JToggleButton("Sphere View", true);
         viewToggle.addActionListener(e -> {
@@ -90,18 +102,18 @@ public class PlanetMapApp extends JFrame {
             updateDisplay();
         });
 
-        // Rotation buttons removed — use trackpad/mouse drag instead
-
         JLabel seedInputLabel = new JLabel("Seed:");
         JTextField seedField = new JTextField(14);
         seedField.setFont(new Font("Monospaced", Font.PLAIN, 13));
         JButton seedButton = new JButton("Use Seed");
         seedButton.addActionListener(e -> {
-            try {
-                long seed = Long.parseLong(seedField.getText().trim());
-                generateMap(seed);
-            } catch (NumberFormatException ex) {
-                generateMap(seedField.getText().trim().hashCode());
+            if (!isGenerating) {
+                try {
+                    long seed = Long.parseLong(seedField.getText().trim());
+                    generateMap(seed);
+                } catch (NumberFormatException ex) {
+                    generateMap(seedField.getText().trim().hashCode());
+                }
             }
         });
 
@@ -141,9 +153,10 @@ public class PlanetMapApp extends JFrame {
     }
 
     private void generateMap(long seed) {
+        isGenerating = true;
         currentSeed = seed;
         starSeed = seed + 99999;
-        seedLabel.setText("Seed: " + seed);
+        seedLabel.setText("Seed: " + seed + " (generating...)");
 
         SwingWorker<BufferedImage, Void> worker = new SwingWorker<>() {
             @Override
@@ -155,8 +168,11 @@ public class PlanetMapApp extends JFrame {
             protected void done() {
                 try {
                     currentFlatMap = get();
+                    isGenerating = false;
+                    seedLabel.setText("Seed: " + seed);
                     updateDisplay();
                 } catch (Exception ex) {
+                    isGenerating = false;
                     JOptionPane.showMessageDialog(PlanetMapApp.this,
                             "Error generating map: " + ex.getMessage(),
                             "Error", JOptionPane.ERROR_MESSAGE);
@@ -167,15 +183,29 @@ public class PlanetMapApp extends JFrame {
     }
 
     private void updateDisplay() {
-        if (currentFlatMap == null) return;
+        if (currentFlatMap == null || isGenerating) return;
+
+        // If already rendering, just mark that we need another render
+        if (isRendering) {
+            renderPending = true;
+            return;
+        }
+
+        isRendering = true;
+        renderPending = false;
+
+        // Capture current rotation state for this render
+        final double rot = rotationDeg;
+        final double tilt = tiltDeg;
+        final boolean sphere = sphereView;
 
         SwingWorker<BufferedImage, Void> worker = new SwingWorker<>() {
             @Override
             protected BufferedImage doInBackground() {
-                if (sphereView) {
+                if (sphere) {
                     int sphereSize = Math.min(1024, Math.min(getWidth() - 20, getHeight() - 70));
                     sphereSize = Math.max(256, sphereSize);
-                    return SphereRenderer.render(currentFlatMap, sphereSize, rotationDeg, tiltDeg, starSeed);
+                    return SphereRenderer.render(currentFlatMap, sphereSize, rot, tilt, starSeed);
                 } else {
                     return currentFlatMap;
                 }
@@ -189,6 +219,11 @@ public class PlanetMapApp extends JFrame {
                     mapLabel.revalidate();
                 } catch (Exception ex) {
                     ex.printStackTrace();
+                }
+                isRendering = false;
+                // If rotation changed during render, do another render
+                if (renderPending) {
+                    updateDisplay();
                 }
             }
         };
