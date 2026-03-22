@@ -109,8 +109,8 @@ public class PlanetGenerator {
                 double e = cont * 0.55 + terrain * 0.10 + mountainElev * 0.35;
                 elevation[px][py] = e;
 
-                // === MOISTURE ===
-                moisture[px][py] = moistNoise.fractal(wwsx * 2.5 + 40, wwsy * 2.5 + 40, wwsz * 2.5 + 40, 5, 0.5, 2.0);
+                // === MOISTURE: broad regions using unwarped coords ===
+                moisture[px][py] = moistNoise.fractal(sx * 1.2 + 40, sy * 1.2 + 40, sz * 1.2 + 40, 2, 0.4, 2.0);
 
                 // === TEMPERATURE: latitude-based with significant noise to break horizontal bands ===
                 double baseTemp = 1.0 - absLat;
@@ -129,17 +129,24 @@ public class PlanetGenerator {
             }
         }
 
-        // Latitude effects
+        // Elevation and latitude influence on biomes
         for (int py = 0; py < height; py++) {
             double lat = Math.PI * (0.5 - (double) py / height);
             double absLat = Math.abs(Math.sin(lat));
             for (int px = 0; px < width; px++) {
-                if (elevation[px][py] > 0.5) {
-                    double landH = (elevation[px][py] - 0.5) / 0.5;
-                    temperature[px][py] -= landH * 0.3;
-                }
-                if (elevation[px][py] > 0.45 && elevation[px][py] < 0.55) {
-                    moisture[px][py] = Math.min(1.0, moisture[px][py] + 0.15);
+                double e = elevation[px][py];
+                if (e > SEA_LEVEL) {
+                    double landH = (e - SEA_LEVEL) / (1.0 - SEA_LEVEL);
+                    // Higher land is colder
+                    temperature[px][py] -= landH * 0.4;
+                    // Higher land is drier (rain shadow effect)
+                    if (landH > 0.3) {
+                        moisture[px][py] -= (landH - 0.3) * 0.5;
+                    }
+                    // Near coast is wetter
+                    if (landH < 0.08) {
+                        moisture[px][py] += 0.2;
+                    }
                 }
                 if (absLat > 0.75) {
                     double polar = (absLat - 0.75) / 0.25;
