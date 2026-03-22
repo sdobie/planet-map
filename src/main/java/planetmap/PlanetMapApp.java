@@ -34,7 +34,7 @@ public class PlanetMapApp extends JFrame {
         super("Planet Map Generator");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        generator = new PlanetGenerator(2048, 1024);
+        generator = new PlanetGenerator(4096, 2048);
         starSeed = System.nanoTime();
 
         // Map display
