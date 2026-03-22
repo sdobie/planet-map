@@ -28,12 +28,16 @@ public class SphereRenderer {
     }
 
     public static BufferedImage render(BufferedImage flatMap, int size, double rotationDeg, double tiltDeg, long starSeed) {
+        return render(flatMap, size, rotationDeg, tiltDeg, 1.0, starSeed);
+    }
+
+    public static BufferedImage render(BufferedImage flatMap, int size, double rotationDeg, double tiltDeg, double zoom, long starSeed) {
         int mapW = flatMap.getWidth();
         int mapH = flatMap.getHeight();
 
         BufferedImage output = new BufferedImage(size, size, BufferedImage.TYPE_INT_RGB);
 
-        double radius = size * 0.45;
+        double radius = size * 0.45 * zoom;
         double cx = size / 2.0;
         double cy = size / 2.0;
         double rotRad = Math.toRadians(rotationDeg);

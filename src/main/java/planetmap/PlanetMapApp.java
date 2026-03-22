@@ -23,6 +23,7 @@ public class PlanetMapApp extends JFrame {
     private int dragStartX, dragStartY;
     private double dragStartRot, dragStartTilt;
     private boolean isDragging = false;
+    private double zoomLevel = 1.0;
 
     // Render throttling
     private volatile boolean isRendering = false;
@@ -80,6 +81,17 @@ public class PlanetMapApp extends JFrame {
             }
         });
 
+        // Scroll wheel / trackpad pinch to zoom
+        mapLabel.addMouseWheelListener(e -> {
+            if (sphereView) {
+                double scrollAmount = e.getPreciseWheelRotation();
+                // Negative = zoom in, positive = zoom out
+                zoomLevel *= Math.pow(1.05, -scrollAmount);
+                zoomLevel = Math.max(1.0, Math.min(4.0, zoomLevel));
+                updateDisplay();
+            }
+        });
+
         JScrollPane scrollPane = new JScrollPane(mapLabel);
         scrollPane.getViewport().setBackground(Color.BLACK);
         scrollPane.setBorder(null);
@@ -127,6 +139,7 @@ public class PlanetMapApp extends JFrame {
         resetViewBtn.addActionListener(e -> {
             rotationDeg = 0;
             tiltDeg = 0;
+            zoomLevel = 1.0;
             updateDisplay();
         });
 
@@ -207,6 +220,7 @@ public class PlanetMapApp extends JFrame {
         final double tilt = tiltDeg;
         final boolean sphere = sphereView;
         final boolean dragging = isDragging;
+        final double zm = zoomLevel;
 
         SwingWorker<BufferedImage, Void> worker = new SwingWorker<>() {
             @Override
@@ -217,7 +231,7 @@ public class PlanetMapApp extends JFrame {
                     // Render at half resolution while dragging for smoother interaction
                     if (dragging) {
                         int halfSize = fullSize / 2;
-                        BufferedImage small = SphereRenderer.render(currentFlatMap, halfSize, rot, tilt, starSeed);
+                        BufferedImage small = SphereRenderer.render(currentFlatMap, halfSize, rot, tilt, zm, starSeed);
                         // Scale up to full size
                         BufferedImage scaled = new BufferedImage(fullSize, fullSize, BufferedImage.TYPE_INT_RGB);
                         Graphics2D g2 = scaled.createGraphics();
@@ -226,7 +240,7 @@ public class PlanetMapApp extends JFrame {
                         g2.dispose();
                         return scaled;
                     }
-                    return SphereRenderer.render(currentFlatMap, fullSize, rot, tilt, starSeed);
+                    return SphereRenderer.render(currentFlatMap, fullSize, rot, tilt, zm, starSeed);
                 } else {
                     return currentFlatMap;
                 }
