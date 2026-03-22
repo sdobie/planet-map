@@ -84,6 +84,41 @@ public class SphereRenderer {
 
                     int color = sampleBilinear(flatMap, mapX, mapY, mapW, mapH);
 
+                    // Add procedural detail that appears as we zoom in
+                    if (zoom > 1.1) {
+                        // Use 3D sphere coordinates for seamless noise
+                        double detailStrength = Math.min(1.0, (zoom - 1.0) / 2.0) * 0.15;
+
+                        // Multiple octaves of high-frequency detail
+                        double detail = 0;
+                        double freq = 20.0;  // high frequency — invisible at 1X
+                        double amp = 1.0;
+                        double totalAmp = 0;
+                        for (int oct = 0; oct < 3; oct++) {
+                            // Use tilted coordinates for noise so it's view-independent
+                            detail += amp * SimplexNoise.noise(nx * freq + 100, ny2 * freq + 200, nz2 * freq + 300);
+                            totalAmp += amp;
+                            freq *= 2.2;
+                            amp *= 0.45;
+                        }
+                        detail /= totalAmp; // normalize to roughly [-1, 1]
+
+                        // Modulate the color brightness based on detail noise
+                        int cr = (color >> 16) & 0xFF;
+                        int cg = (color >> 8) & 0xFF;
+                        int cb = color & 0xFF;
+
+                        // Only apply detail to non-ocean pixels (ocean is dark blue)
+                        boolean isLand = cg > cb || cr > 80;
+                        if (isLand) {
+                            double mod = 1.0 + detail * detailStrength;
+                            cr = clampInt((int)(cr * mod), 0, 255);
+                            cg = clampInt((int)(cg * mod), 0, 255);
+                            cb = clampInt((int)(cb * mod), 0, 255);
+                            color = (cr << 16) | (cg << 8) | cb;
+                        }
+                    }
+
                     // Lambertian shading on sphere surface
                     double diffuse = nx * lightX + ny * lightY + nz * lightZ;
                     diffuse = Math.max(0.08, diffuse); // ambient minimum
