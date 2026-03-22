@@ -57,8 +57,10 @@ public class PlanetGenerator {
         SimplexNoise moistNoise     = new SimplexNoise(seed + 6000);
         SimplexNoise tempNoise      = new SimplexNoise(seed + 7000);
         SimplexNoise mountainNoise  = new SimplexNoise(seed + 8000);
+        SimplexNoise roughNoise     = new SimplexNoise(seed + 9000);
 
         double[][] elevation = new double[width][height];
+        double[][] roughness = new double[width][height]; // high-freq detail for hillshading only
         double[][] moisture = new double[width][height];
         double[][] temperature = new double[width][height];
 
@@ -108,6 +110,10 @@ public class PlanetGenerator {
                 // === COMBINE ===
                 double e = cont * 0.55 + terrain * 0.10 + mountainElev * 0.35;
                 elevation[px][py] = e;
+
+                // === ROUGHNESS: high-frequency detail for jagged hillshading ===
+                double rough = roughNoise.fractal(sx * 8.0, sy * 8.0, sz * 8.0, 6, 0.55, 2.2);
+                roughness[px][py] = rough;
 
                 // === MOISTURE: broad regions using unwarped coords ===
                 moisture[px][py] = moistNoise.fractal(sx * 1.2 + 40, sy * 1.2 + 40, sz * 1.2 + 40, 2, 0.4, 2.0);
@@ -164,8 +170,21 @@ public class PlanetGenerator {
         double ly = Math.cos(lightAltitude) * Math.sin(lightAzimuth);
         double lz = Math.sin(lightAltitude);
 
+        // Build combined elevation for hillshading: base elevation + roughness
+        normalize(roughness);
+        double[][] shadingElev = new double[width][height];
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                double landH = elevation[x][y] >= SEA_LEVEL ?
+                    (elevation[x][y] - SEA_LEVEL) / (1.0 - SEA_LEVEL) : 0;
+                // More roughness on higher terrain, less on flat lowlands and ocean
+                double roughWeight = 0.08 * smoothstep(landH * 2.0);
+                shadingElev[x][y] = elevation[x][y] + roughness[x][y] * roughWeight;
+            }
+        }
+
         double[][] hillshade = new double[width][height];
-        double zFactor = 14.0; // exaggeration factor for relief
+        double zFactor = 16.0; // exaggeration factor for relief
 
         for (int py = 0; py < height; py++) {
             for (int px = 0; px < width; px++) {
@@ -175,8 +194,8 @@ public class PlanetGenerator {
                 int yt = Math.max(0, py - 1);
                 int yb = Math.min(height - 1, py + 1);
 
-                double dzdx = (elevation[xr][py] - elevation[xl][py]) * zFactor;
-                double dzdy = (elevation[px][yt] - elevation[px][yb]) * zFactor;
+                double dzdx = (shadingElev[xr][py] - shadingElev[xl][py]) * zFactor;
+                double dzdy = (shadingElev[px][yt] - shadingElev[px][yb]) * zFactor;
 
                 // Surface normal
                 double nx = -dzdx;
