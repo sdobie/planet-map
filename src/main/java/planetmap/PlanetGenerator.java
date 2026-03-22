@@ -310,13 +310,12 @@ public class PlanetGenerator {
         }
 
         // Textured mountain rock: fully opaque, detail only varies rock color
-        if (mountainness > 0.15) {
-            double rockT = smoothstep((mountainness - 0.15) / 0.85);
-            // Detail varies between dark rock, light rock, and tinted with biome
+        if (mountainness > 0.2) {
+            // Sharp transition: 0.2 -> 0.5 mountainness = 0% -> 100% rock
+            double rockT = Math.min(1.0, (mountainness - 0.2) / 0.3);
+            // Detail varies between dark rock and light rock
             Color rock = lerpColor(MOUNTAIN_ROCK, MOUNTAIN_HIGH, mountainDetail);
-            // Slight biome tint at lower elevations within mountains
-            Color tintedRock = lerpColor(rock, biome, 0.2 * (1.0 - mountainDetail));
-            return lerpColor(biome, tintedRock, rockT);
+            return lerpColor(biome, rock, rockT);
         }
 
         return biome;
