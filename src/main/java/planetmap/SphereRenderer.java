@@ -31,6 +31,8 @@ public class SphereRenderer {
         return render(flatMap, size, rotationDeg, tiltDeg, 1.0, starSeed);
     }
 
+    private static final SimplexNoise detailNoise = new SimplexNoise(12345);
+
     public static BufferedImage render(BufferedImage flatMap, int size, double rotationDeg, double tiltDeg, double zoom, long starSeed) {
         int mapW = flatMap.getWidth();
         int mapH = flatMap.getHeight();
@@ -96,7 +98,7 @@ public class SphereRenderer {
                         double totalAmp = 0;
                         for (int oct = 0; oct < 3; oct++) {
                             // Use tilted coordinates for noise so it's view-independent
-                            detail += amp * SimplexNoise.noise(nx * freq + 100, ny2 * freq + 200, nz2 * freq + 300);
+                            detail += amp * detailNoise.eval(nx * freq + 100, ny2 * freq + 200, nz2 * freq + 300);
                             totalAmp += amp;
                             freq *= 2.2;
                             amp *= 0.45;
