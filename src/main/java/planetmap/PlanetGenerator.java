@@ -28,8 +28,8 @@ public class PlanetGenerator {
     private static final Color BOREAL_FOREST     = new Color(35, 75, 45);
     private static final Color TUNDRA            = new Color(165, 185, 170);
     private static final Color SNOW              = new Color(235, 242, 248);
-    private static final Color MOUNTAIN_ROCK     = new Color(120, 110, 100);
-    private static final Color MOUNTAIN_HIGH     = new Color(170, 165, 155);
+    private static final Color MOUNTAIN_ROCK     = new Color(95, 85, 75);
+    private static final Color MOUNTAIN_HIGH     = new Color(140, 130, 120);
     private static final Color ICE               = new Color(210, 225, 240);
 
     public PlanetGenerator() {
@@ -287,10 +287,10 @@ public class PlanetGenerator {
             return lerpColor(base, SNOW, t);
         }
 
-        // Mountain/highland zone: smooth transition from biome to rock
-        if (landHeight > 0.30) {
-            double t = smoothstep(smoothstep((landHeight - 0.30) / 0.50));
-            Color rock = lerpColor(MOUNTAIN_ROCK, MOUNTAIN_HIGH, smoothstep(landHeight));
+        // Mountain/highland zone: solid rock appearance
+        if (landHeight > 0.45) {
+            double t = smoothstep((landHeight - 0.45) / 0.30);
+            Color rock = lerpColor(MOUNTAIN_ROCK, MOUNTAIN_HIGH, landHeight);
             return lerpColor(biome, rock, t);
         }
 
