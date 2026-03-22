@@ -62,6 +62,7 @@ public class PlanetGenerator {
 
         double[][] elevation = new double[width][height];
         double[][] mountainMap = new double[width][height]; // broad mountain regions for coloring
+        double[][] mountainDetail = new double[width][height]; // texture within mountains
         double[][] moisture = new double[width][height];
         double[][] temperature = new double[width][height];
 
@@ -151,6 +152,7 @@ public class PlanetGenerator {
 
                 elevation[px][py] = e;
                 mountainMap[px][py] = mt; // store broad mountain region for coloring
+                mountainDetail[px][py] = ridge * 0.5 + terrain * 0.5; // texture for mountain coloring
 
                 // === MOISTURE ===
                 double moistFreq = 2.5;
@@ -171,6 +173,7 @@ public class PlanetGenerator {
         // Normalize all to [0, 1]
         normalize(elevation);
         normalize(mountainMap);
+        normalize(mountainDetail);
         normalize(moisture);
 
         // === ELEVATION REDISTRIBUTION: create bimodal hypsometric curve ===
@@ -215,11 +218,12 @@ public class PlanetGenerator {
 
             for (int px = 0; px < width; px++) {
                 double e = elevation[px][py];
-                double r = mountainMap[px][py];
+                double mtReg = mountainMap[px][py];
+                double mtDet = mountainDetail[px][py];
                 double m = moisture[px][py];
                 double t = temperature[px][py];
 
-                Color color = getBiomeColor(e, r, m, t, absLat);
+                Color color = getBiomeColor(e, mtReg, mtDet, m, t, absLat);
                 image.setRGB(px, py, color.getRGB());
             }
         }
@@ -266,7 +270,8 @@ public class PlanetGenerator {
 
     private static final double SEA_LEVEL = 0.50;
 
-    private Color getBiomeColor(double elevation, double mountainRegion, double moisture, double temperature, double absLat) {
+    private Color getBiomeColor(double elevation, double mountainRegion, double mountainDetail,
+                                double moisture, double temperature, double absLat) {
         // Water
         if (elevation < SEA_LEVEL) {
             double depth = (SEA_LEVEL - elevation) / SEA_LEVEL;
@@ -292,22 +297,29 @@ public class PlanetGenerator {
         }
 
         // Mountain coloring based on broad mountain regions
-        // mountainRegion is a smooth, low-frequency value — high in mountain areas
         double mountainness = smoothstep(mountainRegion);
 
         // Snow line depends on latitude
         double snowLine = 0.75 - absLat * 0.25;
         if (mountainness > 0.5 && landHeight > snowLine) {
             double snowT = smoothstep((landHeight - snowLine) / (1.0 - snowLine));
-            Color base = lerpColor(biome, MOUNTAIN_ROCK, mountainness);
+            // Textured rock under snow
+            Color rock = lerpColor(MOUNTAIN_ROCK, MOUNTAIN_HIGH, mountainDetail);
+            Color base = lerpColor(biome, rock, mountainness);
             return lerpColor(base, SNOW, snowT);
         }
 
-        // Broad mountain rock coloring
+        // Textured mountain rock: detail noise varies between dark and light rock,
+        // and valleys within mountains let biome color peek through
         if (mountainness > 0.15) {
             double rockT = smoothstep((mountainness - 0.15) / 0.85);
-            Color rock = lerpColor(MOUNTAIN_ROCK, MOUNTAIN_HIGH, mountainness);
-            return lerpColor(biome, rock, rockT);
+            // Detail creates variation: dark rock, light rock, and biome peaking through valleys
+            Color darkRock = MOUNTAIN_ROCK;
+            Color lightRock = MOUNTAIN_HIGH;
+            Color rock = lerpColor(darkRock, lightRock, mountainDetail);
+            // In lower-detail areas within mountains, let more biome show through
+            double valleyFactor = rockT * (0.5 + 0.5 * mountainDetail);
+            return lerpColor(biome, rock, valleyFactor);
         }
 
         return biome;
