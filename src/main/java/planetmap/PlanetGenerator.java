@@ -112,10 +112,10 @@ public class PlanetGenerator {
                 // === MOISTURE ===
                 moisture[px][py] = moistNoise.fractal(wwsx * 2.5 + 40, wwsy * 2.5 + 40, wwsz * 2.5 + 40, 5, 0.5, 2.0);
 
-                // === TEMPERATURE ===
+                // === TEMPERATURE: latitude-based with significant noise to break horizontal bands ===
                 double baseTemp = 1.0 - absLat;
-                double tNoise = tempNoise.fractal(sx * 2, sy * 2, sz * 2, 3, 0.5, 2.0) * 0.15;
-                temperature[px][py] = baseTemp * 0.85 + tNoise + 0.08;
+                double tNoise = tempNoise.fractal(sx * 2, sy * 2, sz * 2, 3, 0.5, 2.0) * 0.25;
+                temperature[px][py] = baseTemp * 0.75 + tNoise + 0.12;
             }
         }
 
@@ -279,28 +279,33 @@ public class PlanetGenerator {
         // Water
         if (elevation < SEA_LEVEL) {
             double depth = (SEA_LEVEL - elevation) / SEA_LEVEL;
-            if (absLat > 0.92 || (absLat > 0.82 && depth < 0.3)) {
-                double iceAmount = absLat > 0.92 ? 1.0 : (absLat - 0.82) / 0.10;
-                return lerpColor(getWaterColor(depth), ICE, iceAmount);
+            // Polar ice — use temperature instead of hard latitude
+            if (temperature < 0.05) {
+                return lerpColor(getWaterColor(depth), ICE, smoothstep((0.05 - temperature) / 0.05));
+            }
+            if (temperature < 0.15 && depth < 0.3) {
+                double iceAmount = smoothstep((0.15 - temperature) / 0.10);
+                return lerpColor(getWaterColor(depth), ICE, iceAmount * 0.7);
             }
             return getWaterColor(depth);
         }
 
         double landHeight = (elevation - SEA_LEVEL) / (1.0 - SEA_LEVEL);
-        Color biome = getLandBiome(moisture, temperature, absLat);
+        Color biome = getLandBiome(moisture, temperature);
 
         // Beach
         if (landHeight < 0.04) {
             return lerpColor(BEACH, biome, smoothstep(landHeight / 0.04));
         }
 
-        // Snow/ice caps at poles
-        if (absLat > 0.90) {
-            return lerpColor(TUNDRA, SNOW, smoothstep((absLat - 0.90) / 0.10));
+        // Snow/ice at very cold temperatures
+        if (temperature < 0.08) {
+            double snowT = smoothstep((0.08 - temperature) / 0.08);
+            return lerpColor(biome, SNOW, snowT);
         }
 
-        // High altitude snow line
-        double snowLine = 0.80 - absLat * 0.30;
+        // High altitude snow — threshold based on temperature
+        double snowLine = 0.60 + temperature * 0.35;
         if (landHeight > snowLine) {
             double snowT = smoothstep((landHeight - snowLine) / (1.0 - snowLine));
             return lerpColor(biome, SNOW, snowT * 0.8);
@@ -316,16 +321,17 @@ public class PlanetGenerator {
         return lerpColor(SHORE_WATER, SHALLOW_WATER, depth / 0.10);
     }
 
-    private Color getLandBiome(double moisture, double temperature, double absLat) {
-        if (absLat > 0.85) return TUNDRA;
-        if (absLat > 0.78) {
-            return moisture > 0.4 ? BOREAL_FOREST : TUNDRA;
-        }
-
-        if (temperature < 0.2) {
+    private Color getLandBiome(double moisture, double temperature) {
+        // All biome selection purely temperature + moisture based (no latitude thresholds)
+        if (temperature < 0.15) {
             return moisture > 0.45 ? BOREAL_FOREST : TUNDRA;
         }
-        if (temperature < 0.5) {
+        if (temperature < 0.35) {
+            if (moisture > 0.55) return BOREAL_FOREST;
+            if (moisture > 0.35) return GRASSLAND;
+            return DRY_GRASSLAND;
+        }
+        if (temperature < 0.55) {
             if (moisture > 0.6) return TEMPERATE_FOREST;
             if (moisture > 0.35) return GRASSLAND;
             return DRY_GRASSLAND;
