@@ -20,9 +20,9 @@ public class PlanetGenerator {
     private static final Color SHORE_WATER       = new Color(65, 110, 170);
 
     // Land colors — olive/tan palette matching realistic planet renders
-    private static final Color BEACH             = new Color(210, 200, 150);
-    private static final Color SUBTROPICAL_DESERT = new Color(195, 175, 110);
-    private static final Color DRY_GRASSLAND     = new Color(170, 165, 85);
+    private static final Color BEACH             = new Color(190, 175, 130);
+    private static final Color SUBTROPICAL_DESERT = new Color(175, 150, 95);
+    private static final Color DRY_GRASSLAND     = new Color(150, 140, 75);
     private static final Color GRASSLAND         = new Color(140, 155, 65);
     private static final Color TEMPERATE_FOREST  = new Color(75, 115, 50);
     private static final Color TROPICAL_FOREST   = new Color(50, 100, 40);
@@ -158,7 +158,7 @@ public class PlanetGenerator {
         double lz = Math.sin(lightAltitude);
 
         double[][] hillshade = new double[width][height];
-        double zFactor = 8.0; // exaggeration factor for relief
+        double zFactor = 14.0; // exaggeration factor for relief
 
         for (int py = 0; py < height; py++) {
             for (int px = 0; px < width; px++) {
@@ -277,7 +277,7 @@ public class PlanetGenerator {
                 if (flow[x][y] > maxFlow) maxFlow = flow[x][y];
 
         double[][] riverIntensity = new double[width][height];
-        double riverThreshold = 80; // minimum flow to show as river
+        double riverThreshold = 30; // minimum flow to show as river
         if (maxFlow > 0) {
             double logMax = Math.log(maxFlow);
             double logThresh = Math.log(riverThreshold);
@@ -307,14 +307,14 @@ public class PlanetGenerator {
                 double hs = hillshade[px][py];
 
                 Color color = getBiomeColor(e, m, t, absLat);
-                // Apply hillshading
-                double shadeFactor = 0.3 + hs * 1.1;
+                // Apply hillshading: 0.15 (deep shadow) to 1.6 (bright highlight)
+                double shadeFactor = 0.15 + hs * 1.45;
                 color = applyShading(color, shadeFactor);
 
                 // Draw rivers
                 double river = riverIntensity[px][py];
                 if (river > 0) {
-                    double riverAlpha = smoothstep(river) * 0.85;
+                    double riverAlpha = smoothstep(river) * 0.95;
                     color = lerpColor(color, RIVER_COLOR, riverAlpha);
                 }
 
