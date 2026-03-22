@@ -2,6 +2,7 @@ package planetmap;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.*;
 import java.awt.image.BufferedImage;
 
 /**
@@ -17,7 +18,11 @@ public class PlanetMapApp extends JFrame {
     private BufferedImage currentDisplay;
     private boolean sphereView = true;
     private double rotationDeg = 0;
+    private double tiltDeg = 0;
     private long starSeed;
+    private int dragStartX, dragStartY;
+    private double dragStartRot, dragStartTilt;
+    private boolean isDragging = false;
 
     public PlanetMapApp() {
         super("Planet Map Generator");
@@ -31,6 +36,41 @@ public class PlanetMapApp extends JFrame {
         mapLabel.setHorizontalAlignment(SwingConstants.CENTER);
         mapLabel.setBackground(Color.BLACK);
         mapLabel.setOpaque(true);
+
+        // Mouse drag to rotate the sphere
+        mapLabel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (sphereView) {
+                    isDragging = true;
+                    dragStartX = e.getX();
+                    dragStartY = e.getY();
+                    dragStartRot = rotationDeg;
+                    dragStartTilt = tiltDeg;
+                    mapLabel.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+                }
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                isDragging = false;
+                mapLabel.setCursor(Cursor.getDefaultCursor());
+            }
+        });
+
+        mapLabel.addMouseMotionListener(new MouseMotionAdapter() {
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                if (isDragging && sphereView) {
+                    int dx = e.getX() - dragStartX;
+                    int dy = e.getY() - dragStartY;
+                    // Convert pixel drag to degrees (scale by sphere size)
+                    rotationDeg = (dragStartRot + dx * 0.4 + 360) % 360;
+                    tiltDeg = Math.max(-80, Math.min(80, dragStartTilt + dy * 0.4));
+                    updateDisplay();
+                }
+            }
+        });
 
         JScrollPane scrollPane = new JScrollPane(mapLabel);
         scrollPane.getViewport().setBackground(Color.BLACK);
@@ -50,17 +90,7 @@ public class PlanetMapApp extends JFrame {
             updateDisplay();
         });
 
-        JButton rotLeftBtn = new JButton("\u25C0 Rotate");
-        rotLeftBtn.addActionListener(e -> {
-            rotationDeg = (rotationDeg - 30 + 360) % 360;
-            updateDisplay();
-        });
-
-        JButton rotRightBtn = new JButton("Rotate \u25B6");
-        rotRightBtn.addActionListener(e -> {
-            rotationDeg = (rotationDeg + 30) % 360;
-            updateDisplay();
-        });
+        // Rotation buttons removed — use trackpad/mouse drag instead
 
         JLabel seedInputLabel = new JLabel("Seed:");
         JTextField seedField = new JTextField(14);
@@ -83,8 +113,6 @@ public class PlanetMapApp extends JFrame {
 
         controls.add(generateButton);
         controls.add(viewToggle);
-        controls.add(rotLeftBtn);
-        controls.add(rotRightBtn);
         controls.add(Box.createHorizontalStrut(10));
         controls.add(seedInputLabel);
         controls.add(seedField);
@@ -147,7 +175,7 @@ public class PlanetMapApp extends JFrame {
                 if (sphereView) {
                     int sphereSize = Math.min(1024, Math.min(getWidth() - 20, getHeight() - 70));
                     sphereSize = Math.max(256, sphereSize);
-                    return SphereRenderer.render(currentFlatMap, sphereSize, rotationDeg, starSeed);
+                    return SphereRenderer.render(currentFlatMap, sphereSize, rotationDeg, tiltDeg, starSeed);
                 } else {
                     return currentFlatMap;
                 }

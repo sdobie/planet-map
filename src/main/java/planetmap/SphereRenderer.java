@@ -20,10 +20,14 @@ public class SphereRenderer {
      * @return rendered sphere image
      */
     public static BufferedImage render(BufferedImage flatMap, int size, double rotationDeg) {
-        return render(flatMap, size, rotationDeg, System.nanoTime());
+        return render(flatMap, size, rotationDeg, 0, System.nanoTime());
     }
 
     public static BufferedImage render(BufferedImage flatMap, int size, double rotationDeg, long starSeed) {
+        return render(flatMap, size, rotationDeg, 0, starSeed);
+    }
+
+    public static BufferedImage render(BufferedImage flatMap, int size, double rotationDeg, double tiltDeg, long starSeed) {
         int mapW = flatMap.getWidth();
         int mapH = flatMap.getHeight();
 
@@ -33,6 +37,9 @@ public class SphereRenderer {
         double cx = size / 2.0;
         double cy = size / 2.0;
         double rotRad = Math.toRadians(rotationDeg);
+        double tiltRad = Math.toRadians(clamp(tiltDeg, -80, 80));
+        double cosTilt = Math.cos(tiltRad);
+        double sinTilt = Math.sin(tiltRad);
 
         // Light direction for sphere shading (from upper-left)
         double lightX = -0.5;
@@ -56,9 +63,13 @@ public class SphereRenderer {
                     double ny = dy / radius;
                     double nz = Math.sqrt(Math.max(0, 1.0 - nx * nx - ny * ny));
 
+                    // Apply tilt rotation (rotate around X axis)
+                    double ny2 = ny * cosTilt - nz * sinTilt;
+                    double nz2 = ny * sinTilt + nz * cosTilt;
+
                     // Sphere to lat/lon
-                    double lat = Math.asin(clamp(-ny, -1, 1));
-                    double lon = Math.atan2(nx, nz) + rotRad;
+                    double lat = Math.asin(clamp(-ny2, -1, 1));
+                    double lon = Math.atan2(nx, nz2) + rotRad;
 
                     // Normalize lon to [0, 2*PI]
                     lon = ((lon % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
