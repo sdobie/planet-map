@@ -445,17 +445,24 @@ public class PlanetGenerator {
             return lerpColor(BEACH, biome, smoothstep(landHeight / beachWidth));
         }
 
-        // Snow/ice at very cold temperatures
+        // Snow/ice at very cold temperatures — use roughness for patchy edges
         if (temperature < 0.08) {
-            double snowT = smoothstep((0.08 - temperature) / 0.08);
-            return lerpColor(biome, SNOW, snowT);
+            double snowThreshold = 0.08 + (rough - 0.5) * 0.04; // vary threshold with roughness
+            double snowT = smoothstep((snowThreshold - temperature) / 0.08);
+            return lerpColor(biome, SNOW, snowT * 0.85);
         }
 
-        // High altitude snow — threshold based on temperature
-        double snowLine = 0.60 + temperature * 0.35;
+        // High altitude snow — use roughness to create irregular, patchy snow line
+        double snowLine = 0.55 + temperature * 0.35 + (rough - 0.5) * 0.15; // roughness shifts snow line
         if (landHeight > snowLine) {
-            double snowT = smoothstep((landHeight - snowLine) / (1.0 - snowLine));
-            return lerpColor(biome, SNOW, snowT * 0.8);
+            // Very gradual transition with patchiness
+            double transitionWidth = 0.25; // wide transition zone
+            double snowProgress = (landHeight - snowLine) / transitionWidth;
+            // Use roughness to create patches within the transition
+            double patchiness = rough * 0.6; // some patches have more snow, some less
+            double snowT = smoothstep(Math.min(1.0, snowProgress + patchiness - 0.3));
+            // Cap opacity so snow doesn't fully obscure terrain
+            return lerpColor(biome, SNOW, snowT * 0.7);
         }
 
         return biome;
