@@ -332,9 +332,15 @@ public class PlanetGenerator {
                 double t = temperature[px][py];
                 double hs = hillshade[px][py];
 
-                Color color = getBiomeColor(e, m, t, absLat);
-                // Apply hillshading: 0.15 (deep shadow) to 1.6 (bright highlight)
-                double shadeFactor = 0.15 + hs * 1.45;
+                Color color = getBiomeColor(e, m, t, absLat, roughness[px][py]);
+                // Apply hillshading: land gets full relief, water gets almost none
+                double shadeFactor;
+                if (e >= SEA_LEVEL) {
+                    shadeFactor = 0.15 + hs * 1.45;
+                } else {
+                    // Very subtle shading on water
+                    shadeFactor = 0.85 + hs * 0.2;
+                }
                 color = applyShading(color, shadeFactor);
 
                 // Draw rivers
@@ -400,7 +406,7 @@ public class PlanetGenerator {
 
     private static final double SEA_LEVEL = 0.50;
 
-    private Color getBiomeColor(double elevation, double moisture, double temperature, double absLat) {
+    private Color getBiomeColor(double elevation, double moisture, double temperature, double absLat, double rough) {
         // Water
         if (elevation < SEA_LEVEL) {
             double depth = (SEA_LEVEL - elevation) / SEA_LEVEL;
@@ -418,9 +424,10 @@ public class PlanetGenerator {
         double landHeight = (elevation - SEA_LEVEL) / (1.0 - SEA_LEVEL);
         Color biome = getLandBiome(moisture, temperature);
 
-        // Beach
-        if (landHeight < 0.04) {
-            return lerpColor(BEACH, biome, smoothstep(landHeight / 0.04));
+        // Beach — use roughness noise to make the border irregular
+        double beachWidth = 0.03 + rough * 0.06; // varies from 0.03 to 0.09
+        if (landHeight < beachWidth) {
+            return lerpColor(BEACH, biome, smoothstep(landHeight / beachWidth));
         }
 
         // Snow/ice at very cold temperatures
