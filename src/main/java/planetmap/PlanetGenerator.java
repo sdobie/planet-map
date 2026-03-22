@@ -6,31 +6,29 @@ import java.util.Random;
 
 /**
  * Generates realistic planet maps using 3D simplex noise sampled on a sphere,
- * with domain warping, separate continentalness layer, and bimodal elevation.
+ * with domain warping, hillshading for 3D relief, and bimodal elevation.
  */
 public class PlanetGenerator {
 
     private final int width;
     private final int height;
 
-    // Biome colors
-    private static final Color DEEP_OCEAN        = new Color(15, 40, 100);
-    private static final Color OCEAN             = new Color(25, 60, 140);
-    private static final Color SHALLOW_WATER     = new Color(50, 95, 165);
-    private static final Color SHORE_WATER       = new Color(70, 120, 180);
+    // Water colors
+    private static final Color DEEP_OCEAN        = new Color(15, 35, 90);
+    private static final Color OCEAN             = new Color(25, 55, 130);
+    private static final Color SHALLOW_WATER     = new Color(45, 85, 155);
+    private static final Color SHORE_WATER       = new Color(65, 110, 170);
 
-    private static final Color BEACH             = new Color(220, 210, 160);
-    private static final Color SUBTROPICAL_DESERT = new Color(215, 190, 120);
-    private static final Color DRY_GRASSLAND     = new Color(175, 175, 80);
-    private static final Color GRASSLAND         = new Color(110, 165, 60);
-    private static final Color TEMPERATE_FOREST  = new Color(45, 115, 45);
-    private static final Color TROPICAL_FOREST   = new Color(20, 90, 30);
-    private static final Color BOREAL_FOREST     = new Color(35, 75, 45);
-    private static final Color TUNDRA            = new Color(165, 185, 170);
+    // Land colors — olive/tan palette matching realistic planet renders
+    private static final Color BEACH             = new Color(210, 200, 150);
+    private static final Color SUBTROPICAL_DESERT = new Color(195, 175, 110);
+    private static final Color DRY_GRASSLAND     = new Color(170, 165, 85);
+    private static final Color GRASSLAND         = new Color(140, 155, 65);
+    private static final Color TEMPERATE_FOREST  = new Color(75, 115, 50);
+    private static final Color TROPICAL_FOREST   = new Color(50, 100, 40);
+    private static final Color BOREAL_FOREST     = new Color(55, 80, 45);
+    private static final Color TUNDRA            = new Color(160, 170, 150);
     private static final Color SNOW              = new Color(235, 242, 248);
-    private static final Color MOUNTAIN_DARK     = new Color(70, 60, 55);
-    private static final Color MOUNTAIN_MID      = new Color(120, 110, 95);
-    private static final Color MOUNTAIN_LIGHT    = new Color(175, 165, 150);
     private static final Color ICE               = new Color(210, 225, 240);
 
     public PlanetGenerator() {
@@ -56,26 +54,21 @@ public class PlanetGenerator {
         SimplexNoise warpNoise2     = new SimplexNoise(seed + 2000);
         SimplexNoise warpNoise3     = new SimplexNoise(seed + 3000);
         SimplexNoise detailNoise    = new SimplexNoise(seed + 4000);
-        SimplexNoise ridgeNoise     = new SimplexNoise(seed + 5000);
-        SimplexNoise mountainNoise  = new SimplexNoise(seed + 8000); // broad mountain regions
         SimplexNoise moistNoise     = new SimplexNoise(seed + 6000);
         SimplexNoise tempNoise      = new SimplexNoise(seed + 7000);
+        SimplexNoise mountainNoise  = new SimplexNoise(seed + 8000);
 
         double[][] elevation = new double[width][height];
-        double[][] mountainMap = new double[width][height]; // broad mountain regions for coloring
-        double[][] mountainDetail = new double[width][height]; // texture within mountains
         double[][] moisture = new double[width][height];
         double[][] temperature = new double[width][height];
 
         for (int py = 0; py < height; py++) {
-            // Latitude in radians: +PI/2 (north) to -PI/2 (south)
             double lat = Math.PI * (0.5 - (double) py / height);
             double cosLat = Math.cos(lat);
             double sinLat = Math.sin(lat);
             double absLat = Math.abs(sinLat);
 
             for (int px = 0; px < width; px++) {
-                // Longitude in radians: 0 to 2*PI
                 double lon = 2.0 * Math.PI * px / width;
 
                 // 3D point on the unit sphere
@@ -83,126 +76,71 @@ public class PlanetGenerator {
                 double sy = cosLat * Math.sin(lon);
                 double sz = sinLat;
 
-                // === CONTINENTALNESS: very low frequency, smooth, determines land vs ocean ===
-                double contFreq = 1.0;
-                double cont = continentNoise.fractal(
-                        sx * contFreq, sy * contFreq, sz * contFreq,
-                        2, 0.4, 2.0);
+                // === CONTINENTALNESS: very low frequency, smooth ===
+                double cont = continentNoise.fractal(sx, sy, sz, 2, 0.4, 2.0);
 
-                // === DOMAIN WARPING: low-frequency only, to break up round shapes ===
-                // Level 1: broad warp
+                // === DOMAIN WARPING ===
                 double warpFreq = 0.8;
                 double warpAmp = 0.45;
-                double wx = warpNoise1.fractal(
-                        sx * warpFreq + 5.2, sy * warpFreq + 1.3, sz * warpFreq + 3.7,
-                        2, 0.4, 2.0) * warpAmp;
-                double wy = warpNoise2.fractal(
-                        sx * warpFreq + 9.1, sy * warpFreq + 4.8, sz * warpFreq + 7.2,
-                        2, 0.4, 2.0) * warpAmp;
-                double wz = warpNoise3.fractal(
-                        sx * warpFreq + 2.6, sy * warpFreq + 8.4, sz * warpFreq + 1.9,
-                        2, 0.4, 2.0) * warpAmp;
+                double wx = warpNoise1.fractal(sx * warpFreq + 5.2, sy * warpFreq + 1.3, sz * warpFreq + 3.7, 2, 0.4, 2.0) * warpAmp;
+                double wy = warpNoise2.fractal(sx * warpFreq + 9.1, sy * warpFreq + 4.8, sz * warpFreq + 7.2, 2, 0.4, 2.0) * warpAmp;
+                double wz = warpNoise3.fractal(sx * warpFreq + 2.6, sy * warpFreq + 8.4, sz * warpFreq + 1.9, 2, 0.4, 2.0) * warpAmp;
 
-                double wsx = sx + wx;
-                double wsy = sy + wy;
-                double wsz = sz + wz;
+                double wsx = sx + wx, wsy = sy + wy, wsz = sz + wz;
 
-                // Level 2: subtle secondary warp for coastline irregularity
-                double warp2Freq = 2.0;
-                double warp2Amp = 0.12;
-                double w2x = warpNoise1.fractal(
-                        wsx * warp2Freq + 20.1, wsy * warp2Freq + 15.3, wsz * warp2Freq + 10.7,
-                        2, 0.4, 2.0) * warp2Amp;
-                double w2y = warpNoise2.fractal(
-                        wsx * warp2Freq + 25.4, wsy * warp2Freq + 18.9, wsz * warp2Freq + 12.1,
-                        2, 0.4, 2.0) * warp2Amp;
-                double w2z = warpNoise3.fractal(
-                        wsx * warp2Freq + 30.8, wsy * warp2Freq + 22.5, wsz * warp2Freq + 14.3,
-                        2, 0.4, 2.0) * warp2Amp;
+                // Level 2: coastline irregularity
+                double w2Amp = 0.12;
+                double w2x = warpNoise1.fractal(wsx * 2 + 20.1, wsy * 2 + 15.3, wsz * 2 + 10.7, 2, 0.4, 2.0) * w2Amp;
+                double w2y = warpNoise2.fractal(wsx * 2 + 25.4, wsy * 2 + 18.9, wsz * 2 + 12.1, 2, 0.4, 2.0) * w2Amp;
+                double w2z = warpNoise3.fractal(wsx * 2 + 30.8, wsy * 2 + 22.5, wsz * 2 + 14.3, 2, 0.4, 2.0) * w2Amp;
 
-                double wwsx = wsx + w2x;
-                double wwsy = wsy + w2y;
-                double wwsz = wsz + w2z;
+                double wwsx = wsx + w2x, wwsy = wsy + w2y, wwsz = wsz + w2z;
 
-                // === TERRAIN DETAIL: only affects land texture, NOT continent shape ===
-                double terrainFreq = 3.5;
-                double terrain = detailNoise.fractal(
-                        wwsx * terrainFreq, wwsy * terrainFreq, wwsz * terrainFreq,
-                        4, 0.4, 2.0);
+                // === TERRAIN DETAIL ===
+                double terrain = detailNoise.fractal(wwsx * 3.5, wwsy * 3.5, wwsz * 3.5, 4, 0.4, 2.0);
 
-                // === MOUNTAIN REGIONS: low-frequency blobs marking where mountains are ===
-                double mtFreq = 1.8;
-                double mt = mountainNoise.fractal(
-                        wsx * mtFreq + 50, wsy * mtFreq + 50, wsz * mtFreq + 50,
-                        2, 0.4, 2.0);
-                // Shift up so ~40% of area can be mountainous, then smooth threshold
+                // === MOUNTAIN REGIONS ===
+                double mt = mountainNoise.fractal(wsx * 1.8 + 50, wsy * 1.8 + 50, wsz * 1.8 + 50, 2, 0.4, 2.0);
                 mt = smoothstep(Math.max(0, mt + 0.25));
 
-                // === RIDGE NOISE: subtle elevation variation within mountain regions ===
-                double ridgeFreq = 3.0;
-                double ridge = ridgeNoise.fractal(
-                        wsx * ridgeFreq, wsy * ridgeFreq, wsz * ridgeFreq,
-                        3, 0.4, 2.0);
-                ridge = Math.max(0, ridge);
+                double mountainElev = mt * 0.9;
 
-                // Mountains only contribute elevation where mountain regions exist
-                double mountainElev = mt * (0.8 + ridge * 0.2);
-
-                // === COMBINE: continent shape + terrain detail + mountain elevation ===
-                double e = cont * 0.60 + terrain * 0.10 + mountainElev * 0.30;
-
+                // === COMBINE ===
+                double e = cont * 0.55 + terrain * 0.10 + mountainElev * 0.35;
                 elevation[px][py] = e;
-                mountainMap[px][py] = mt; // store broad mountain region for coloring
-                mountainDetail[px][py] = ridge * 0.5 + terrain * 0.5; // texture for mountain coloring
 
                 // === MOISTURE ===
-                double moistFreq = 2.5;
-                double m = moistNoise.fractal(
-                        wwsx * moistFreq + 40, wwsy * moistFreq + 40, wwsz * moistFreq + 40,
-                        5, 0.5, 2.0);
-                moisture[px][py] = m;
+                moisture[px][py] = moistNoise.fractal(wwsx * 2.5 + 40, wwsy * 2.5 + 40, wwsz * 2.5 + 40, 5, 0.5, 2.0);
 
-                // === TEMPERATURE: latitude-based with noise variation ===
-                double baseTemp = 1.0 - absLat; // hot at equator, cold at poles
-                double tNoise = tempNoise.fractal(
-                        sx * 2.0, sy * 2.0, sz * 2.0,
-                        3, 0.5, 2.0) * 0.15;
+                // === TEMPERATURE ===
+                double baseTemp = 1.0 - absLat;
+                double tNoise = tempNoise.fractal(sx * 2, sy * 2, sz * 2, 3, 0.5, 2.0) * 0.15;
                 temperature[px][py] = baseTemp * 0.85 + tNoise + 0.08;
             }
         }
 
-        // Normalize all to [0, 1]
         normalize(elevation);
-        normalize(mountainMap);
-        normalize(mountainDetail);
         normalize(moisture);
 
-        // === ELEVATION REDISTRIBUTION: create bimodal hypsometric curve ===
-        // This is the key to making oceans flat and continents distinct
+        // Hypsometric curve
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
                 elevation[x][y] = hypsometric(elevation[x][y]);
             }
         }
 
-        // === LATITUDE EFFECTS ===
+        // Latitude effects
         for (int py = 0; py < height; py++) {
             double lat = Math.PI * (0.5 - (double) py / height);
             double absLat = Math.abs(Math.sin(lat));
-
             for (int px = 0; px < width; px++) {
-                // Reduce temperature at high elevations
                 if (elevation[px][py] > 0.5) {
                     double landH = (elevation[px][py] - 0.5) / 0.5;
                     temperature[px][py] -= landH * 0.3;
                 }
-
-                // Coastal moisture boost
                 if (elevation[px][py] > 0.45 && elevation[px][py] < 0.55) {
                     moisture[px][py] = Math.min(1.0, moisture[px][py] + 0.15);
                 }
-
-                // Polar moisture reduction
                 if (absLat > 0.75) {
                     double polar = (absLat - 0.75) / 0.25;
                     moisture[px][py] *= (1.0 - polar * 0.5);
@@ -210,6 +148,65 @@ public class PlanetGenerator {
             }
         }
         normalize(moisture);
+
+        // === COMPUTE HILLSHADING ===
+        // Light direction: upper-left (northwest), angled down at 45 degrees
+        double lightAzimuth = Math.toRadians(315); // NW
+        double lightAltitude = Math.toRadians(35);
+        double lx = Math.cos(lightAltitude) * Math.cos(lightAzimuth);
+        double ly = Math.cos(lightAltitude) * Math.sin(lightAzimuth);
+        double lz = Math.sin(lightAltitude);
+
+        double[][] hillshade = new double[width][height];
+        double zFactor = 4.0; // exaggeration factor for relief
+
+        for (int py = 0; py < height; py++) {
+            double lat = Math.PI * (0.5 - (double) py / height);
+            double cosLat = Math.cos(lat);
+            // Scale to compensate for latitude compression in equirectangular
+            double latScale = (cosLat > 0.01) ? 1.0 / cosLat : 100.0;
+            latScale = Math.min(latScale, 10.0); // cap near poles
+
+            for (int px = 0; px < width; px++) {
+                // Compute gradient using central differences, wrapping horizontally
+                int xl = (px - 1 + width) % width;
+                int xr = (px + 1) % width;
+                int yt = Math.max(0, py - 1);
+                int yb = Math.min(height - 1, py + 1);
+
+                double dzdx = (elevation[xr][py] - elevation[xl][py]) * zFactor * latScale;
+                double dzdy = (elevation[px][yt] - elevation[px][yb]) * zFactor; // yt is north = higher y
+
+                // Surface normal
+                double nx = -dzdx;
+                double ny = -dzdy;
+                double nz = 1.0;
+                double len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+                nx /= len; ny /= len; nz /= len;
+
+                // Lambertian shading
+                double shade = nx * lx + ny * ly + nz * lz;
+                shade = Math.max(0, shade);
+                hillshade[px][py] = shade;
+            }
+        }
+
+        // Normalize hillshade to [0, 1]
+        double hsMin = Double.MAX_VALUE, hsMax = -Double.MAX_VALUE;
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < height; y++) {
+                if (hillshade[x][y] < hsMin) hsMin = hillshade[x][y];
+                if (hillshade[x][y] > hsMax) hsMax = hillshade[x][y];
+            }
+        }
+        double hsRange = hsMax - hsMin;
+        if (hsRange > 0) {
+            for (int x = 0; x < width; x++) {
+                for (int y = 0; y < height; y++) {
+                    hillshade[x][y] = (hillshade[x][y] - hsMin) / hsRange;
+                }
+            }
+        }
 
         // === RENDER ===
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
@@ -219,17 +216,30 @@ public class PlanetGenerator {
 
             for (int px = 0; px < width; px++) {
                 double e = elevation[px][py];
-                double mtReg = mountainMap[px][py];
-                double mtDet = mountainDetail[px][py];
                 double m = moisture[px][py];
                 double t = temperature[px][py];
+                double hs = hillshade[px][py];
 
-                Color color = getBiomeColor(e, mtReg, mtDet, m, t, absLat);
+                Color color = getBiomeColor(e, m, t, absLat);
+                // Apply hillshading: multiply color by shade factor
+                // Range from 0.4 (deep shadow) to 1.3 (bright highlight)
+                double shadeFactor = 0.4 + hs * 0.9;
+                color = applyShading(color, shadeFactor);
                 image.setRGB(px, py, color.getRGB());
             }
         }
 
         return image;
+    }
+
+    /**
+     * Apply a brightness multiplier to a color, clamping to [0, 255].
+     */
+    private static Color applyShading(Color c, double factor) {
+        int r = Math.min(255, Math.max(0, (int) (c.getRed() * factor)));
+        int g = Math.min(255, Math.max(0, (int) (c.getGreen() * factor)));
+        int b = Math.min(255, Math.max(0, (int) (c.getBlue() * factor)));
+        return new Color(r, g, b);
     }
 
     /**
@@ -271,12 +281,10 @@ public class PlanetGenerator {
 
     private static final double SEA_LEVEL = 0.50;
 
-    private Color getBiomeColor(double elevation, double mountainRegion, double mountainDetail,
-                                double moisture, double temperature, double absLat) {
+    private Color getBiomeColor(double elevation, double moisture, double temperature, double absLat) {
         // Water
         if (elevation < SEA_LEVEL) {
             double depth = (SEA_LEVEL - elevation) / SEA_LEVEL;
-            // Polar ice on water
             if (absLat > 0.92 || (absLat > 0.82 && depth < 0.3)) {
                 double iceAmount = absLat > 0.92 ? 1.0 : (absLat - 0.82) / 0.10;
                 return lerpColor(getWaterColor(depth), ICE, iceAmount);
@@ -297,31 +305,11 @@ public class PlanetGenerator {
             return lerpColor(TUNDRA, SNOW, smoothstep((absLat - 0.90) / 0.10));
         }
 
-        // Mountain coloring based on broad mountain regions
-        double mountainness = smoothstep(mountainRegion);
-
-        // Snow line depends on latitude
-        double snowLine = 0.75 - absLat * 0.25;
-        if (mountainness > 0.5 && landHeight > snowLine) {
+        // High altitude snow line
+        double snowLine = 0.80 - absLat * 0.30;
+        if (landHeight > snowLine) {
             double snowT = smoothstep((landHeight - snowLine) / (1.0 - snowLine));
-            // Textured rock under snow
-            Color rock = lerpColor(MOUNTAIN_DARK, MOUNTAIN_LIGHT, mountainDetail);
-            Color base = lerpColor(biome, rock, mountainness);
-            return lerpColor(base, SNOW, snowT);
-        }
-
-        // Textured mountain rock: fully opaque, detail varies rock color across wide range
-        if (mountainness > 0.2) {
-            // Sharp transition: 0.2 -> 0.5 mountainness = 0% -> 100% rock
-            double rockT = Math.min(1.0, (mountainness - 0.2) / 0.3);
-            // Three-color gradient: dark valleys -> mid slopes -> light peaks
-            Color rock;
-            if (mountainDetail < 0.5) {
-                rock = lerpColor(MOUNTAIN_DARK, MOUNTAIN_MID, mountainDetail * 2.0);
-            } else {
-                rock = lerpColor(MOUNTAIN_MID, MOUNTAIN_LIGHT, (mountainDetail - 0.5) * 2.0);
-            }
-            return lerpColor(biome, rock, rockT);
+            return lerpColor(biome, SNOW, snowT * 0.8);
         }
 
         return biome;
