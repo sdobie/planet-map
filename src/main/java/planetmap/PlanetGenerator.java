@@ -161,13 +161,6 @@ public class PlanetGenerator {
         double zFactor = 4.0; // exaggeration factor for relief
 
         for (int py = 0; py < height; py++) {
-            double lat = Math.PI * (0.5 - (double) py / height);
-            double cosLat = Math.cos(lat);
-            // Scale to compensate for latitude compression in equirectangular
-            // Cap aggressively to avoid streaking near poles
-            double latScale = (cosLat > 0.1) ? 1.0 / cosLat : 1.0 / 0.1;
-            latScale = Math.min(latScale, 3.0);
-
             for (int px = 0; px < width; px++) {
                 // Compute gradient using central differences, wrapping horizontally
                 int xl = (px - 1 + width) % width;
@@ -175,8 +168,8 @@ public class PlanetGenerator {
                 int yt = Math.max(0, py - 1);
                 int yb = Math.min(height - 1, py + 1);
 
-                double dzdx = (elevation[xr][py] - elevation[xl][py]) * zFactor * latScale;
-                double dzdy = (elevation[px][yt] - elevation[px][yb]) * zFactor; // yt is north = higher y
+                double dzdx = (elevation[xr][py] - elevation[xl][py]) * zFactor;
+                double dzdy = (elevation[px][yt] - elevation[px][yb]) * zFactor;
 
                 // Surface normal
                 double nx = -dzdx;
