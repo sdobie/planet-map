@@ -30,7 +30,8 @@ public class PlanetMapApp extends JFrame {
         mapLabel.setOpaque(true);
 
         JScrollPane scrollPane = new JScrollPane(mapLabel);
-        scrollPane.setPreferredSize(new Dimension(1060, 560));
+        scrollPane.getViewport().setBackground(Color.BLACK);
+        scrollPane.setBorder(null);
 
         // Controls panel
         JPanel controls = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 8));
@@ -74,6 +75,11 @@ public class PlanetMapApp extends JFrame {
         add(scrollPane, BorderLayout.CENTER);
         add(controls, BorderLayout.SOUTH);
 
+        // Size the window to fit the map with controls
+        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+        int winW = Math.min(generator.getWidth() + 20, screenSize.width - 40);
+        int winH = Math.min(generator.getHeight() + 80, screenSize.height - 40);
+        setPreferredSize(new Dimension(winW, winH));
         pack();
         setLocationRelativeTo(null);
 

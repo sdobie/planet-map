@@ -41,6 +41,9 @@ public class PlanetGenerator {
         this.height = height;
     }
 
+    public int getWidth() { return width; }
+    public int getHeight() { return height; }
+
     public BufferedImage generate() {
         return generate(new Random().nextLong());
     }
@@ -118,19 +121,19 @@ public class PlanetGenerator {
                 double wwsz = wsz + w2z;
 
                 // === TERRAIN DETAIL: only affects land texture, NOT continent shape ===
-                double terrainFreq = 5.0;
+                double terrainFreq = 3.5;
                 double terrain = detailNoise.fractal(
                         wwsx * terrainFreq, wwsy * terrainFreq, wwsz * terrainFreq,
-                        5, 0.45, 2.0);
+                        4, 0.4, 2.0);
 
-                // === RIDGE NOISE: for mountain chains, only on land ===
-                double ridgeFreq = 4.5;
+                // === RIDGE NOISE: for mountain chains, broader and more natural ===
+                double ridgeFreq = 2.5;
                 double ridge = ridgeNoise.fractal(
                         wsx * ridgeFreq, wsy * ridgeFreq, wsz * ridgeFreq,
-                        4, 0.45, 2.0);
+                        3, 0.4, 2.0);
                 ridge = 1.0 - 2.0 * Math.abs(ridge);
                 ridge = Math.max(0, ridge);
-                ridge = ridge * ridge * ridge;
+                ridge = ridge * ridge; // squared, not cubed — broader peaks
 
                 // === COMBINE: continent dominates shape, detail/ridges only add texture ===
                 double e = cont * 0.70 + terrain * 0.15 + ridge * 0.15;
@@ -284,10 +287,11 @@ public class PlanetGenerator {
             return lerpColor(base, SNOW, t);
         }
 
-        // Mountain/highland zone: very wide gradual blend from biome to rock
-        if (landHeight > 0.25) {
-            double t = smoothstep((landHeight - 0.25) / 0.55);
-            return lerpColor(biome, MOUNTAIN_HIGH, t);
+        // Mountain/highland zone: smooth transition from biome to rock
+        if (landHeight > 0.30) {
+            double t = smoothstep(smoothstep((landHeight - 0.30) / 0.50));
+            Color rock = lerpColor(MOUNTAIN_ROCK, MOUNTAIN_HIGH, smoothstep(landHeight));
+            return lerpColor(biome, rock, t);
         }
 
         return biome;
