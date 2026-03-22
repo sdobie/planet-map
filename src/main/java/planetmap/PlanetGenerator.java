@@ -28,6 +28,8 @@ public class PlanetGenerator {
     private static final Color TROPICAL_FOREST   = new Color(50, 100, 40);
     private static final Color BOREAL_FOREST     = new Color(55, 80, 45);
     private static final Color TUNDRA            = new Color(160, 170, 150);
+    private static final Color ALPINE_ROCK       = new Color(120, 110, 95);   // bare rock above treeline
+    private static final Color ALPINE_SCREE      = new Color(145, 135, 120);  // lighter rocky debris
     private static final Color SNOW              = new Color(235, 242, 248);
     private static final Color ICE               = new Color(210, 225, 240);
 
@@ -452,17 +454,23 @@ public class PlanetGenerator {
             return lerpColor(biome, SNOW, snowT * 0.85);
         }
 
-        // High altitude snow — use roughness to create irregular, patchy snow line
-        double snowLine = 0.55 + temperature * 0.35 + (rough - 0.5) * 0.15; // roughness shifts snow line
-        if (landHeight > snowLine) {
-            // Very gradual transition with patchiness
-            double transitionWidth = 0.25; // wide transition zone
-            double snowProgress = (landHeight - snowLine) / transitionWidth;
-            // Use roughness to create patches within the transition
-            double patchiness = rough * 0.6; // some patches have more snow, some less
-            double snowT = smoothstep(Math.min(1.0, snowProgress + patchiness - 0.3));
-            // Cap opacity so snow doesn't fully obscure terrain
-            return lerpColor(biome, SNOW, snowT * 0.7);
+        // Alpine/treeline zone — vegetation thins out into bare rock before snow
+        double treeLine = 0.35 + temperature * 0.25 + (rough - 0.5) * 0.08;
+        if (landHeight > treeLine) {
+            // Blend from biome to alpine rock as we go above treeline
+            double alpineProgress = smoothstep((landHeight - treeLine) / 0.15);
+            Color alpineRock = lerpColor(ALPINE_ROCK, ALPINE_SCREE, rough); // vary rock color
+            Color alpineColor = lerpColor(biome, alpineRock, alpineProgress);
+
+            // Snow above the snow line
+            double snowLine = treeLine + 0.15 + temperature * 0.15 + (rough - 0.5) * 0.10;
+            if (landHeight > snowLine) {
+                double snowProgress = (landHeight - snowLine) / 0.20;
+                double patchiness = rough * 0.5;
+                double snowT = smoothstep(Math.min(1.0, snowProgress + patchiness - 0.2));
+                return lerpColor(alpineColor, SNOW, snowT * 0.75);
+            }
+            return alpineColor;
         }
 
         return biome;
