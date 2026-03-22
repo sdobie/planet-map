@@ -309,17 +309,14 @@ public class PlanetGenerator {
             return lerpColor(base, SNOW, snowT);
         }
 
-        // Textured mountain rock: detail noise varies between dark and light rock,
-        // and valleys within mountains let biome color peek through
+        // Textured mountain rock: fully opaque, detail only varies rock color
         if (mountainness > 0.15) {
             double rockT = smoothstep((mountainness - 0.15) / 0.85);
-            // Detail creates variation: dark rock, light rock, and biome peaking through valleys
-            Color darkRock = MOUNTAIN_ROCK;
-            Color lightRock = MOUNTAIN_HIGH;
-            Color rock = lerpColor(darkRock, lightRock, mountainDetail);
-            // In lower-detail areas within mountains, let more biome show through
-            double valleyFactor = rockT * (0.5 + 0.5 * mountainDetail);
-            return lerpColor(biome, rock, valleyFactor);
+            // Detail varies between dark rock, light rock, and tinted with biome
+            Color rock = lerpColor(MOUNTAIN_ROCK, MOUNTAIN_HIGH, mountainDetail);
+            // Slight biome tint at lower elevations within mountains
+            Color tintedRock = lerpColor(rock, biome, 0.2 * (1.0 - mountainDetail));
+            return lerpColor(biome, tintedRock, rockT);
         }
 
         return biome;
